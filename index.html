@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>الشرق للخدمات اللوجستية | طلب تعاقد شهري</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Tajawal', sans-serif; background-color: #f1f5f9; }
+        .form-card { border-top: 6px solid #0f172a; }
+        input, select, textarea { border: 1px solid #cbd5e1 !important; }
+    </style>
+</head>
+<body class="pb-10">
+    <header class="bg-slate-900 text-white py-10 px-4 text-center mb-8">
+        <h1 class="text-3xl font-bold">الشرق للخدمات اللوجستية</h1>
+        <p class="mt-2 text-slate-400">إدارة التعاقدات والنقل الشهري</p>
+    </header>
+
+    <main class="max-w-3xl mx-auto px-4">
+        <div class="form-card bg-white p-8 rounded-2xl shadow-xl">
+            <h2 class="text-2xl font-bold text-slate-800 mb-6 text-center">نموذج طلب اشتراك شهري</h2>
+            
+            <form class="space-y-5">
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-2">المدينة</label>
+                    <input type="text" placeholder="مثال: الدمام" class="w-full p-3 rounded-lg outline-none focus:ring-2 focus:ring-slate-900">
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 mb-2">موقع المنزل (رابط القوقل ماب)</label>
+                        <input type="text" placeholder="أصق الرابط هنا" class="w-full p-3 rounded-lg outline-none focus:ring-2 focus:ring-slate-900">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 mb-2">موقع العمل (رابط القوقل ماب)</label>
+                        <input type="text" placeholder="أصق الرابط هنا" class="w-full p-3 rounded-lg outline-none focus:ring-2 focus:ring-slate-900">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 mb-2">عدد الأشخاص</label>
+                        <input type="number" placeholder="1" class="w-full p-3 rounded-lg outline-none focus:ring-2 focus:ring-slate-900">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 mb-2">أيام العمل بالأسبوع</label>
+                        <select class="w-full p-3 rounded-lg outline-none focus:ring-2 focus:ring-slate-900">
+                            <option>5 أيام (الأحد - الخميس)</option>
+                            <option>6 أيام (السبت - الخميس)</option>
+                            <option>أخرى</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 mb-2">أيام الإجازة</label>
+                        <input type="text" placeholder="مثال: الجمعة والسبت" class="w-full p-3 rounded-lg outline-none focus:ring-2 focus:ring-slate-900">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 mb-2">وقت الذهاب</label>
+                        <input type="time" class="w-full p-3 rounded-lg outline-none focus:ring-2 focus:ring-slate-900">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 mb-2">وقت العودة</label>
+                        <input type="time" class="w-full p-3 rounded-lg outline-none focus:ring-2 focus:ring-slate-900">
+                    </div>
+                </div>
+
+                <div class="pt-4 border-t border-slate-100">
+                    <label class="block text-sm font-bold text-slate-700 mb-2">السعر المتوقع (اختياري)</label>
+                    <input type="text" placeholder="ريال سعودي" class="w-full p-3 rounded-lg outline-none focus:ring-2 focus:ring-slate-900 bg-slate-50">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-2">ملاحظات إضافية</label>
+                    <textarea rows="3" placeholder="أي تفاصيل أخرى تود إضافتها..." class="w-full p-3 rounded-lg outline-none focus:ring-2 focus:ring-slate-900"></textarea>
+                </div>
+
+                <button type="button" class="w-full bg-slate-900 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:bg-slate-800 transition-all active:scale-95">
+                    إرسال الطلب للمراجعة
+                </button>
+            </form>
+        </div>
+        
+        <p class="text-center text-slate-500 text-sm mt-8">مؤسسة الشرق للخدمات اللوجستية &copy; 2026</p>
+    </main>
+</body>
+</html>
