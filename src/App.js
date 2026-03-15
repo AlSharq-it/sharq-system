@@ -25,13 +25,23 @@ function App() {
           </div>
         )}
         {role !== 'landing' && (
-          <button onClick={() => setRole('landing')} style={{marginTop: '20px'}}>العودة للرئيسية</button>
+          <button onClick={() => setRole('landing')} style={{marginTop: '20px', padding: '10px 20px', cursor: 'pointer'}}>العودة للرئيسية</button>
         )}
       </main>
     </div>
   );
 }
 
-const btnStyle = (bg) => ({ backgroundColor: bg, color: '#fff', padding: '15px', margin: '10px', border: 'none', borderRadius: '10px', cursor: 'pointer' });
+const btnStyle = (bg) => ({ 
+  backgroundColor: bg, 
+  color: bg === '#d4af37' ? '#000' : '#fff', 
+  padding: '15px 25px', 
+  margin: '10px', 
+  border: 'none', 
+  borderRadius: '12px', 
+  cursor: 'pointer',
+  fontWeight: 'bold',
+  boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+});
 
 export default App;
