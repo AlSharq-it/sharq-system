@@ -1,36 +1,40 @@
+.card-container {
+  perspective: 1000px; /* يعطي عمق للحركة الثلاثية الأبعاد */
+  width: 320px;
+  height: 480px;
+  margin: 20px auto;
+}
 
-import React from 'react';
+.card-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transition: transform 0.8s;
+  transform-style: preserve-3d;
+  cursor: pointer;
+}
 
-const DriverCard = ({ driverData }) => {
-  if (!driverData) return null;
+.card-container:hover .card-inner {
+  transform: rotateY(180deg);
+}
 
-  return (
-    <div style={{ 
-      background: '#004d40', 
-      color: '#d4af37', 
-      padding: '20px', 
-      borderRadius: '15px', 
-      textAlign: 'center', 
-      maxWidth: '300px', 
-      margin: '20px auto', 
-      border: '2px solid #d4af37',
-      fontFamily: 'Cairo, sans-serif'
-    }}>
-      <h3 style={{ color: '#fff', marginBottom: '15px' }}>بطاقة كابتن شرق الرقمية</h3>
-      
-      <div style={{ background: '#fff', width: '80px', height: '80px', borderRadius: '50%', margin: '0 auto 10px auto', overflow: 'hidden' }}>
-        <img src={driverData.licenseImageUrl} alt="الكابتن" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-      </div>
-      
-      <h4 style={{ margin: '5px 0', fontSize: '18px' }}>{driverData.name}</h4>
-      <p style={{ margin: '5px 0', fontSize: '14px', color: '#fff' }}>السيارة: {driverData.carType}</p>
-      <p style={{ margin: '5px 0', fontSize: '14px', color: '#fff' }}>رقم الجوال: {driverData.phone}</p>
-      
-      <div style={{ background: 'white', padding: '10px', marginTop: '15px', borderRadius: '5px', color: '#000', fontWeight: 'bold' }}>
-        مسح للتأكد من الهوية (QR Code)
-      </div>
-    </div>
-  );
-};
+.card-front, .card-back {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  backface-visibility: hidden;
+  border-radius: 20px;
+  border: 2px solid #d4af37;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  /* تأثير الزجاج الشفاف */
+  background: rgba(0, 77, 64, 0.9);
+  backdrop-filter: blur(10px);
+}
 
-export default DriverCard;
+.card-back {
+  transform: rotateY(180deg);
+  background: rgba(212, 175, 55, 0.1);
+}
