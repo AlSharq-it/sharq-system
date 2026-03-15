@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>الشرق اللوجستية | منصة التشغيل الرسمية</title>
+    
+    <!-- React & Tailwind & Babel -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Firebase SDK (Compat Version for standalone HTML) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    
+    <!-- FontAwesome & Fonts -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Arabic:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#0f172a', // كحلي داكن رسمي
+                        gold: '#c5a059',    // ذهبي مؤسسي
+                        surface: '#f8fafc'  // خلفيات
+                    },
+                    fontFamily: { sans: ['"IBM Plex Arabic"', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'IBM Plex Arabic', sans-serif; background-color: #f8fafc; color: #1e293b; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        // ==========================================
+        // 1. تهيئة Firebase باستخدام بياناتك الحقيقية
+        // ==========================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyCDEDHjFR3VZXjuYemEX3qXdVLOe5T4QiM",
+            authDomain: "sharq-logistics.firebaseapp.com",
+            projectId: "sharq-logistics",
+            storageBucket: "sharq-logistics.firebasestorage.app",
+            messagingSenderId: "589414129711",
+            appId: "1:589414129711:web:5a8748384299afa968a6da",
+            measurementId: "G-5LN047LTRG"
+        };
+        
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const db = firebase.firestore();
+        const auth = firebase.auth();
+
+        // ==========================================
+        // 2. أدوات النظام (ضغط الصور)
+        // ==========================================
+        const compressImage = (file) => {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = (event) => {
+                    const img = new Image();
+                    img.src = event.target.result;
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        const MAX_WIDTH = 800; // تصغير الحجم لتخفيف الحمل على القاعدة
+                        const scaleSize = MAX_WIDTH / img.width;
+                        canvas.width = MAX_WIDTH;
+                        canvas.height = img.height * scaleSize;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                        resolve(canvas.toDataURL('image/jpeg', 0.6));
+                    };
+                };
+            });
+        };
+
+        // ==========================================
+        // 3. التطبيق الرئيسي (Main App Component)
+        // ==========================================
+        const App = () => {
+            const [view, setView] = useState('landing'); 
+            const [authType, setAuthType] = useState('client'); 
+            const [authMode, setAuthMode] = useState('login'); 
+            const [loading, setLoading] = useState(false);
+            const [loggedInUser, setLoggedInUser] = useState(null);
+            
+            // بيانات القاعدة
+            const [drivers, setDrivers] = useState([]);
+            const [clients, setClients] = useState([]);
+            const [orders, setOrders] = useState([]);
+
+            // حالة معالج تسجيل السائق
+            const [driverStep, setDriverStep] = useState(1);
+            const [driverData, setDriverData] = useState({});
+
+            // جلب البيانات الحية
+            useEffect(() => {
+                const unsubD = db.collection('drivers').onSnapshot(s => setDrivers(s.docs.map(d => ({id: d.id, ...d.data()}))));
+                const unsubC = db.collection('clients').onSnapshot(s => setClients(s.docs.map(d => ({id: d.id, ...d.data()}))));
+                const unsubO = db.collection('orders').onSnapshot(s => setOrders(s.docs.map(d => ({id: d.id, ...d.data()}))));
+                return () => { unsubD(); unsubC(); unsubO(); };
+            }, []);
+
+            // مكون الشعار
+            const Logo = ({ className = "" }) => (
+                <div className={`flex items-center gap-3 ${className}`}>
+                    <div className="w-12 h-12 bg-primary rounded-lg flex items-center justify-center border-b-4 border-gold shadow-md">
+                        <span className="text-gold font-bold text-2xl">ش</span>
+                    </div>
+                    <div className="flex flex-col text-right">
+                        <span className="text-xl font-bold text-primary">الشرق اللوجستية</span>
+                        <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Enterprise Systems</span>
+                    </div>
+                </div>
+            );
+
+            // --- معالجة الدخول للعملاء (منع التكرار) ---
+            const handleClientAuth = async (e) => {
+                e.preventDefault();
+                const fd = new FormData(e.target);
+                const data = Object.fromEntries(fd.entries());
+                setLoading(true);
+
+                if (authMode === 'register') {
+                    if (drivers.some(d => d.phone === data.phone) || clients.some(c => c.phone === data.phone)) {
+                        alert("رقم الجوال مستخدم مسبقاً في النظام. الرجاء تسجيل الدخول.");
+                        setLoading(false); return;
+                    }
+                    await db.collection('clients').add({ ...data, status: 'نشط', createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+                    alert("تم تسجيل حسابك كعميل بنجاح.");
+                    setAuthMode('login');
+                } else {
+                    const found = clients.find(u => u.phone === data.phone && u.password === data.password);
+                    if (found) { setLoggedInUser(found); setView('client_dash'); } 
+                    else alert("بيانات الدخول غير صحيحة.");
+                }
+                setLoading(false);
+            };
+
+            // --- معالجة الدخول للكباتن ---
+            const handleDriverLogin = (e) => {
+                e.preventDefault();
+                const phone = e.target.phone.value;
+                const pass = e.target.password.value;
+                const found = drivers.find(u => u.phone === phone && u.password === pass);
+                if (found) { setLoggedInUser(found); setView('driver_dash'); } 
+                else alert("بيانات الدخول غير صحيحة للكابتن.");
+            };
+
+            // رفع صور السائق وتخزينها
+            const handleImageUpload = async (e, field) => {
+                if (e.target.files[0]) {
+                    const base64 = await compressImage(e.target.files[0]);
+                    setDriverData({...driverData, [field]: base64});
+                }
+            };
+
+            const submitDriverRegistration = async () => {
+                if(!driverData.signature) return alert("يجب كتابة الاسم للموافقة على العقد.");
+                setLoading(true);
+                await db.collection('drivers').add({
+                    ...driverData, status: 'قيد المراجعة', rank: 'أساسي', createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                alert("تم استلام طلبك. سيتم مراجعة الوثائق من قبل الإدارة.");
+                setDriverData({}); setDriverStep(1); setAuthMode('login'); setLoading(false);
+            };
+
+            // ==========================================
+            // بوابة العملاء
+            // ==========================================
+            const ClientDashboard = () => {
+                const [showForm, setShowForm] = useState(false);
+                const myOrders = orders.filter(o => o.clientPhone === loggedInUser.phone);
+
+                const submitOrder = async (e) => {
+                    e.preventDefault();
+                    const fd = new FormData(e.target);
+                    setLoading(true);
+                    await db.collection('orders').add({
+                        ...Object.fromEntries(fd.entries()), 
+                        clientName: loggedInUser.fullName, 
+                        clientPhone: loggedInUser.phone, 
+                        status: 'تحت الإجراء', 
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    alert("تم إرسال الطلب بنجاح للإدارة.");
+                    setShowForm(false); setLoading(false);
+                };
+
+                return (
+                    <div className="min-h-screen bg-surface pb-10" dir="rtl">
+                        <nav className="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center shadow-sm">
+                            <Logo />
+                            <button onClick={()=>setLoggedInUser(null) || setView('landing')} className="text-red-500 text-sm font-bold flex items-center gap-2 hover:bg-red-50 px-3 py-1 rounded"><i className="fa-solid fa-power-off"></i> خروج</button>
+                        </nav>
+
+                        <div className="max-w-5xl mx-auto px-4 mt-10">
+                            <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-200 flex flex-col md:flex-row justify-between items-center gap-6 mb-8">
+                                <div>
+                                    <h2 className="text-2xl font-bold text-primary mb-1">مرحباً، {loggedInUser.fullName}</h2>
+                                    <p className="text-gray-500 text-sm">يمكنك طلب ومتابعة خدمات التوصيل من هنا.</p>
+                                </div>
+                                <button onClick={()=>setShowForm(true)} className="bg-primary text-white px-6 py-3 rounded-xl font-bold flex items-center gap-3 hover:bg-gray-800 transition">
+                                    <i className="fa-solid fa-plus"></i> طلب خدمة توصيل
+                                </button>
+                            </div>
+
+                            <h3 className="text-lg font-bold text-gray-800 mb-4 border-b border-gray-200 pb-2">سجل الطلبات الحالية ({myOrders.length})</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {myOrders.map(o => (
+                                    <div key={o.id} className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm relative overflow-hidden">
+                                        <div className="absolute top-0 right-0 w-1 h-full bg-gold"></div>
+                                        <div className="flex justify-between items-center mb-4">
+                                            <span className="bg-gray-100 text-primary font-bold px-3 py-1 rounded text-sm border border-gray-200">{o.serviceType}</span>
+                                            <span className="text-xs font-bold bg-blue-50 text-blue-600 px-2 py-1 rounded">{o.status}</span>
+                                        </div>
+                                        <div className="space-y-2 text-sm text-gray-600">
+                                            <p className="flex items-start gap-2"><i className="fa-solid fa-map-pin text-gold mt-1"></i> <span><strong>المسار:</strong> {o.homeLoc} ↔ {o.workLoc}</span></p>
+                                            <p className="flex items-center gap-2"><i className="fa-solid fa-users text-gold"></i> <strong>الركاب:</strong> {o.peopleCount}</p>
+                                            <p className="flex items-center gap-2"><i className="fa-solid fa-calendar-day text-gold"></i> <strong>الأيام:</strong> {o.workDays}</p>
+                                            <p className="flex items-center gap-2"><i className="fa-solid fa-clock text-gold"></i> <strong>المواعيد:</strong> {o.deliveryTimes}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                                {myOrders.length === 0 && <div className="col-span-full py-16 text-center text-gray-400 font-bold border border-dashed border-gray-300 rounded-xl bg-white">لا توجد طلبات.. ابدأ بطلب خدمة جديدة الآن.</div>}
+                            </div>
+                        </div>
+
+                        {showForm && (
+                            <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
+                                <div className="bg-white w-full max-w-2xl rounded-2xl shadow-xl flex flex-col max-h-[90vh]">
+                                    <div className="p-6 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+                                        <h3 className="text-xl font-bold text-primary">نموذج طلب الخدمة</h3>
+                                        <button onClick={()=>setShowForm(false)} className="text-gray-400 hover:text-red-500"><i className="fa-solid fa-times fa-lg"></i></button>
+                                    </div>
+                                    <div className="p-6 overflow-y-auto custom-scrollbar">
+                                        <form onSubmit={submitOrder} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div className="md:col-span-2">
+                                                <label className="block text-xs font-bold text-gray-600 mb-1">نوع الخدمة المطلوب</label>
+                                                <select name="serviceType" required className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:border-primary font-bold text-primary">
+                                                    <option value="">-- اختر من القائمة --</option>
+                                                    <option>توصيل اشتراك شهري</option>
+                                                    <option>توصيل أسبوعي</option>
+                                                    <option>توصيل سفر</option>
+                                                    <option>توصيل الجامعات</option>
+                                                    <option>توصيل موظفين</option>
+                                                    <option>توصيل بعقود طويلة</option>
+                                                </select>
+                                            </div>
+                                            <div className="md:col-span-2"><label className="block text-xs font-bold text-gray-600 mb-1">موقع البيت (وصف أو رابط)</label><input name="homeLoc" required className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:border-primary" /></div>
+                                            <div className="md:col-span-2"><label className="block text-xs font-bold text-gray-600 mb-1">موقع العمل/الوجهة (وصف أو رابط)</label><input name="workLoc" required className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:border-primary" /></div>
+                                            <div><label className="block text-xs font-bold text-gray-600 mb-1">عدد الأشخاص</label><input name="peopleCount" type="number" required className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:border-primary" /></div>
+                                            <div><label className="block text-xs font-bold text-gray-600 mb-1">أيام العمل بالأسبوع</label><input name="workDays" required placeholder="مثال: من الأحد للخميس" className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:border-primary" /></div>
+                                            <div className="md:col-span-2"><label className="block text-xs font-bold text-gray-600 mb-1">مواعيد التوصيل</label><input name="deliveryTimes" required placeholder="مثال: 7:00 ص - 3:00 م" className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:border-primary" /></div>
+                                            <div className="md:col-span-2"><label className="block text-xs font-bold text-gray-600 mb-1">ملاحظات إضافية</label><textarea name="notes" className="w-full p-3 border border-gray-300 rounded-lg outline-none focus:border-primary h-20"></textarea></div>
+                                            <button disabled={loading} className="md:col-span-2 py-4 mt-2 bg-primary text-white rounded-lg font-bold hover:bg-gray-800 disabled:opacity-50 transition">إرسال الطلب للإدارة</button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                );
+            };
+
+            // ==========================================
+            // بوابة الكابتن (معالج التسجيل واللوحة)
+            // ==========================================
+            const DriverAuthWizard = () => {
+                if (authMode === 'login') {
+                    return (
+                        <div className="min-h-screen flex items-center justify-center p-4 bg-surface" dir="rtl">
+                            <div className="bg-white w-full max-w-md p-10 rounded-2xl shadow-lg border border-gray-200 text-center relative">
+                                <button onClick={()=>setView('landing')} className="absolute top-6 left-6 text-gray-400 hover:text-primary"><i className="fa-solid fa-arrow-left"></i></button>
+                                <Logo className="justify-center mb-8"/>
+                                <h2 className="text-xl font-bold mb-8 text-primary">دخول الكباتن المعتمدين</h2>
+                                <form onSubmit={handleDriverLogin} className="space-y-4">
+                                    <div><label className="block text-right text-xs font-bold text-gray-500 mb-1">رقم الجوال</label><input name="phone" required placeholder="05xxxxxxxx" className="w-full p-4 border border-gray-300 rounded-lg outline-none focus:border-primary text-center font-bold" dir="ltr" /></div>
+                                    <div><label className="block text-right text-xs font-bold text-gray-500 mb-1">كلمة المرور</label><input name="password" type="password" required placeholder="••••••••" className="w-full p-4 border border-gray-300 rounded-lg outline-none focus:border-primary text-center font-bold" dir="ltr" /></div>
+                                    <button className="w-full py-4 mt-4 bg-primary text-white font-bold rounded-lg hover:bg-gray-800 transition">تسجيل الدخول</button>
+                                </form>
+                                <div className="mt-8 border-t border-gray-100 pt-6">
+                                    <button onClick={()=>{setAuthMode('register'); setDriverStep(1);}} className="text-sm font-bold text-blue-600 hover:underline">طلب انضمام للأسطول ككابتن جديد</button>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                }
+
+                return (
+                    <div className="min-h-screen flex items-center justify-center p-4 bg-surface" dir="rtl">
+                        <div className="bg-white w-full max-w-2xl p-8 md:p-12 rounded-2xl shadow-lg border border-gray-200 relative">
+                            <div className="flex justify-between items-center mb-8 border-b border-gray-100 pb-6">
+                                <Logo />
+                                <span className="text-sm font-bold bg-gray-100 px-3 py-1 rounded text-primary">الخطوة {driverStep} من 3</span>
+                            </div>
+
+                            {driverStep === 1 && (
+                                <div>
+                                    <h3 className="font-bold text-lg mb-6 text-primary border-r-4 border-gold pr-3"><i className="fa-solid fa-user text-gray-400 ml-2"></i> البيانات الشخصية</h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="md:col-span-2"><label className="block text-xs font-bold text-gray-600 mb-1">الاسم الرباعي (كما في الهوية)</label><input value={driverData.fullName||''} onChange={e=>setDriverData({...driverData, fullName: e.target.value})} className="w-full p-3 border border-gray-300 rounded-lg focus:border-primary outline-none" /></div>
+                                        <div><label className="block text-xs font-bold text-gray-600 mb-1">الجنسية</label><input value={driverData.nationality||''} onChange={e=>setDriverData({...driverData, nationality: e.target.value})} className="w-full p-3 border border-gray-300 rounded-lg focus:border-primary outline-none" /></div>
+                                        <div><label className="block text-xs font-bold text-gray-600 mb-1">تاريخ الميلاد</label><input type="date" value={driverData.dob||''} onChange={e=>setDriverData({...driverData, dob: e.target.value})} className="w-full p-3 border border-gray-300 rounded-lg focus:border-primary outline-none text-gray-600" /></div>
+                                        <div><label className="block text-xs font-bold text-gray-600 mb-1">المدينة والحي</label><input value={driverData.city||''} onChange={e=>setDriverData({...driverData, city: e.target.value})} className="w-full p-3 border border-gray-300 rounded-lg focus:border-primary outline-none" /></div>
+                                        <div><label className="block text-xs font-bold text-gray-600 mb-1">رقم الجوال</label><input value={driverData.phone||''} onChange={e=>setDriverData({...driverData, phone: e.target.value})} placeholder="05xxxxxxxx" className="w-full p-3 border border-gray-300 rounded-lg focus:border-primary outline-none" dir="ltr" /></div>
+                                        <div className="md:col-span-2"><label className="block text-xs font-bold text-gray-600 mb-1">كلمة المرور (للدخول لاحقاً)</label><input type="password" value={driverData.password||''} onChange={e=>setDriverData({...driverData, password: e.target.value})} className="w-full p-3 border border-gray-300 rounded-lg focus:border-primary outline-none" dir="ltr" /></div>
+                                    </div>
+                                    <div className="mt-8 flex justify-end">
+                                        <button onClick={()=>{
+                                            if(!driverData.fullName || !driverData.phone || !driverData.password) return alert("الرجاء إكمال البيانات الأساسية.");
+                                            if(drivers.some(d=>d.phone===driverData.phone) || clients.some(c=>c.phone===driverData.phone)) return alert("الجوال مستخدم مسبقاً في النظام.");
+                                            setDriverStep(2);
+                                        }} className="bg-primary text-white px-8 py-3 rounded-lg font-bold">التالي <i className="fa-solid fa-chevron-left ml-2"></i></button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {driverStep === 2 && (
+                                <div>
+                                    <h3 className="font-bold text-lg mb-6 text-primary border-r-4 border-gold pr-3"><i className="fa-solid fa-car text-gray-400 ml-2"></i> بيانات المركبة والوثائق</h3>
+                                    <div className="grid grid-cols-2 gap-4 mb-6">
+                                        <div><label className="block text-xs font-bold text-gray-600 mb-1">نوع السيارة</label><input value={driverData.carBrand||''} onChange={e=>setDriverData({...driverData, carBrand: e.target.value})} placeholder="مثال: تويوتا كامري" className="w-full p-3 border border-gray-300 rounded-lg focus:border-primary outline-none" /></div>
+                                        <div><label className="block text-xs font-bold text-gray-600 mb-1">الموديل</label><input value={driverData.carModel||''} onChange={e=>setDriverData({...driverData, carModel: e.target.value})} placeholder="مثال: 2023" className="w-full p-3 border border-gray-300 rounded-lg focus:border-primary outline-none" /></div>
+                                    </div>
+                                    <div className="space-y-4">
+                                        <div className="border border-gray-300 p-5 rounded-lg bg-gray-50">
+                                            <label className="block text-sm font-bold text-gray-800 mb-2">صورة الهوية الوطنية / الإقامة</label>
+                                            <input type="file" accept="image/*" onChange={(e)=>handleImageUpload(e, 'idImage')} className="text-sm w-full" />
+                                            {driverData.idImage && <span className="text-xs text-green-600 font-bold block mt-2"><i className="fa-solid fa-check-circle"></i> تم إرفاق الصورة</span>}
+                                        </div>
+                                        <div className="border border-gray-300 p-5 rounded-lg bg-gray-50 grid grid-cols-2 gap-4">
+                                            <div className="col-span-2"><label className="block text-sm font-bold text-gray-800">صور السيارة (الجهات الأربع)</label></div>
+                                            <div><span className="text-xs text-gray-600 block mb-1">الأمامية</span><input type="file" accept="image/*" onChange={(e)=>handleImageUpload(e, 'carFront')} className="text-xs w-full" /></div>
+                                            <div><span className="text-xs text-gray-600 block mb-1">الخلفية</span><input type="file" accept="image/*" onChange={(e)=>handleImageUpload(e, 'carBack')} className="text-xs w-full" /></div>
+                                            <div><span className="text-xs text-gray-600 block mb-1">الجانب الأيمن</span><input type="file" accept="image/*" onChange={(e)=>handleImageUpload(e, 'carRight')} className="text-xs w-full" /></div>
+                                            <div><span className="text-xs text-gray-600 block mb-1">الجانب الأيسر</span><input type="file" accept="image/*" onChange={(e)=>handleImageUpload(e, 'carLeft')} className="text-xs w-full" /></div>
+                                        </div>
+                                    </div>
+                                    <div className="mt-8 flex justify-between">
+                                        <button onClick={()=>setDriverStep(1)} className="bg-white border border-gray-300 text-gray-700 px-6 py-3 rounded-lg font-bold"><i className="fa-solid fa-chevron-right mr-2"></i> رجوع</button>
+                                        <button onClick={()=>{
+                                            if(!driverData.carBrand || !driverData.carModel) return alert("أدخل نوع السيارة وموديلها.");
+                                            setDriverStep(3);
+                                        }} className="bg-primary text-white px-6 py-3 rounded-lg font-bold">التالي (التوقيع) <i className="fa-solid fa-chevron-left ml-2"></i></button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {driverStep === 3 && (
+                                <div>
+                                    <h3 className="font-bold text-lg mb-6 text-primary border-r-4 border-gold pr-3"><i className="fa-solid fa-file-signature text-gray-400 ml-2"></i> العقد الإلكتروني للإلزام</h3>
+                                    <div className="bg-gray-50 p-6 rounded-lg border border-gray-200 text-sm text-gray-700 leading-loose h-56 overflow-y-auto mb-6">
+                                        <p className="font-bold text-red-700 border-b border-gray-200 pb-2 mb-4">سند تنفيذي - أحكام العمل والعمولات</p>
+                                        <p>1. يلتزم الكابتن بتنفيذ الأوامر بدقة والمحافظة على سرية بيانات العملاء والمواقع.</p>
+                                        <p>2. يلتزم الكابتن بسداد العمولات المالية المتفق عليها أسبوعياً دون تأخير.</p>
+                                        <p>3. تعتبر هذه الموافقة الإلكترونية وتدوين الاسم أدناه بمثابة توقيع رسمي وسند تنفيذي ملزم قانوناً أمام الجهات المختصة في حال المخالفة.</p>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-600 mb-2 text-center">أكتب اسمك الرباعي للموافقة والاعتماد</label>
+                                        <input value={driverData.signature||''} onChange={e=>setDriverData({...driverData, signature: e.target.value})} placeholder="الاسم الرباعي..." className="w-full p-4 border-2 border-gray-300 rounded-lg outline-none focus:border-green-600 text-center font-bold text-lg text-green-800 bg-white" />
+                                    </div>
+                                    <div className="mt-8 flex justify-between">
+                                        <button disabled={loading} onClick={()=>setDriverStep(2)} className="bg-white border border-gray-300 text-gray-700 px-6 py-3 rounded-lg font-bold">تعديل البيانات</button>
+                                        <button disabled={loading} onClick={submitDriverRegistration} className="bg-green-600 text-white px-8 py-3 rounded-lg font-bold hover:bg-green-700 transition">
+                                            {loading ? 'جاري الاعتماد...' : 'توقيع وإنهاء التسجيل'}
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
+            };
+
+            const DriverDashboard = () => (
+                <div className="min-h-screen bg-surface pb-10 text-center" dir="rtl">
+                    <nav className="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center shadow-sm max-w-lg mx-auto mb-10">
+                        <button onClick={()=>setLoggedInUser(null) || setView('landing')} className="text-red-500 text-sm font-bold flex items-center gap-2 bg-red-50 px-3 py-1 rounded"><i className="fa-solid fa-sign-out-alt"></i> خروج</button>
+                        <Logo />
+                    </nav>
+                    <div className="max-w-sm mx-auto bg-white p-8 rounded-2xl shadow-sm border border-gray-200 relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-full h-24 bg-primary rounded-b-3xl"></div>
+                        <div className="w-24 h-24 bg-white rounded-full border-4 border-white shadow-md mx-auto mb-4 relative z-10 overflow-hidden flex items-center justify-center mt-6">
+                            {loggedInUser.idImage ? <img src={loggedInUser.idImage} className="w-full h-full object-cover"/> : <i className="fa-solid fa-user text-4xl text-gray-300"></i>}
+                        </div>
+                        <h2 className="text-xl font-bold text-primary mb-1">{loggedInUser.fullName}</h2>
+                        <p className="text-sm text-gray-500 mb-6 font-bold" dir="ltr">{loggedInUser.phone}</p>
+                        
+                        <div className="inline-block bg-gray-50 px-6 py-2 rounded-lg border border-gray-200 mb-6">
+                            <span className="text-[10px] font-bold text-gray-400 block mb-1">حالة السجل</span>
+                            <span className={`font-bold text-sm ${loggedInUser.status === 'معتمد' ? 'text-green-600' : 'text-amber-600'}`}>
+                                {loggedInUser.status === 'معتمد' ? <><i className="fa-solid fa-check-circle"></i> معتمد رسمياً</> : <><i className="fa-solid fa-clock"></i> قيد التدقيق</>}
+                            </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 text-sm text-gray-600 text-right bg-gray-50 p-4 rounded-lg border border-gray-100">
+                            <div><span className="block text-[10px] text-gray-400">المركبة</span><strong>{loggedInUser.carBrand}</strong></div>
+                            <div><span className="block text-[10px] text-gray-400">الموديل</span><strong>{loggedInUser.carModel}</strong></div>
+                            <div className="col-span-2 mt-2 pt-2 border-t border-gray-200"><span className="block text-[10px] text-gray-400">توقيع العقد (موافق)</span><strong className="text-green-700">{loggedInUser.signature}</strong></div>
+                        </div>
+                    </div>
+                    {loggedInUser.status !== 'معتمد' && (
+                        <div className="max-w-sm mx-auto mt-6 p-4 bg-blue-50 text-blue-800 border border-blue-200 rounded-lg text-xs font-bold leading-relaxed text-center">
+                            <i className="fa-solid fa-info-circle mb-2 text-lg"></i><br/>
+                            ملفك وصور مركبتك قيد المراجعة في الإدارة. سيتم تفعيل خصائص التشغيل فور الاعتماد.
+                        </div>
+                    )}
+                </div>
+            );
+
+            // ==========================================
+            // 4. لوحة الإدارة (مركز القيادة)
+            // ==========================================
+            const AdminDashboard = () => {
+                const [tab, setTab] = useState('orders'); // orders, drivers, clients
+                const [imgModal, setImgModal] = useState(null);
+
+                const ImageViewer = ({ images }) => {
+                    const validImages = images.filter(img => img);
+                    if(validImages.length === 0) return <span className="text-xs text-gray-400">لا توجد مرفقات</span>;
+                    return (
+                        <div className="flex flex-wrap gap-2">
+                            {validImages.map((img, i) => (
+                                <button key={i} onClick={()=>setImgModal(img)} className="w-10 h-10 bg-white rounded border border-gray-300 hover:border-primary flex items-center justify-center shadow-sm">
+                                    <i className="fa-solid fa-image text-gray-500"></i>
+                                </button>
+                            ))}
+                        </div>
+                    );
+                };
+
+                return (
+                  <div className="min-h-screen flex flex-col md:flex-row bg-surface" dir="rtl">
+                    <aside className="w-full md:w-72 bg-primary text-white p-6 flex flex-col sticky top-0 md:h-screen shadow-xl z-40">
+                        <Logo className="mb-10 opacity-90 filter invert brightness-0" />
+                        <nav className="space-y-3 flex-grow">
+                            <button onClick={()=>setTab('orders')} className={`w-full text-right p-4 rounded-lg text-sm font-bold flex items-center gap-3 transition ${tab==='orders'?'bg-white/10 border-r-4 border-gold':'text-gray-400 hover:text-white hover:bg-white/5'}`}><i className="fa-solid fa-clipboard-list w-5"></i> الطلبات الواردة <span className="mr-auto bg-blue-600 px-2 rounded text-xs">{orders.length}</span></button>
+                            <button onClick={()=>setTab('drivers')} className={`w-full text-right p-4 rounded-lg text-sm font-bold flex items-center gap-3 transition ${tab==='drivers'?'bg-white/10 border-r-4 border-gold':'text-gray-400 hover:text-white hover:bg-white/5'}`}><i className="fa-solid fa-id-card w-5"></i> ملفات الكباتن <span className="mr-auto bg-gray-700 px-2 rounded text-xs">{drivers.length}</span></button>
+                            <button onClick={()=>setTab('clients')} className={`w-full text-right p-4 rounded-lg text-sm font-bold flex items-center gap-3 transition ${tab==='clients'?'bg-white/10 border-r-4 border-gold':'text-gray-400 hover:text-white hover:bg-white/5'}`}><i className="fa-solid fa-users w-5"></i> قاعدة العملاء <span className="mr-auto bg-gray-700 px-2 rounded text-xs">{clients.length}</span></button>
+                        </nav>
+                        <button onClick={()=>setView('landing')} className="mt-6 p-4 text-red-400 hover:bg-red-500/10 rounded-lg text-sm font-bold flex items-center justify-center gap-2 border border-red-500/20"><i className="fa-solid fa-sign-out-alt"></i> إغلاق النظام</button>
+                    </aside>
+
+                    <main className="flex-1 p-6 md:p-10 overflow-y-auto">
+                        <div className="flex justify-between items-center mb-8 border-b border-gray-200 pb-4">
+                            <h2 className="text-2xl font-bold text-primary">
+                                {tab === 'orders' ? 'إدارة الطلبات والتوجيه' : tab === 'drivers' ? 'فرز واعتماد الكباتن' : 'سجل العملاء'}
+                            </h2>
+                        </div>
+
+                        {tab === 'orders' && (
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                {orders.map(o => (
+                                    <div key={o.id} className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm relative hover:shadow-md transition">
+                                        <button onClick={()=>{if(confirm('حذف الطلب نهائياً؟')) window.fsCollections.deleteDoc(window.fsCollections.doc(window.firebaseDb, 'orders', o.id))}} className="absolute top-4 left-4 text-gray-300 hover:text-red-500"><i className="fa-solid fa-trash-alt"></i></button>
+                                        <div className="flex justify-between items-start mb-4 border-b border-gray-100 pb-4">
+                                            <div>
+                                                <h3 className="font-bold text-lg text-primary">{o.clientName}</h3>
+                                                <span className="text-xs text-gray-500 font-bold" dir="ltr">{o.clientPhone}</span>
+                                            </div>
+                                            <span className="bg-blue-50 text-blue-700 text-xs font-bold px-3 py-1 rounded border border-blue-100">{o.serviceType}</span>
+                                        </div>
+                                        <div className="bg-gray-50 p-4 rounded-lg text-sm space-y-3 mb-6 border border-gray-200 text-gray-700">
+                                            <p className="flex items-start gap-2"><i className="fa-solid fa-route text-gray-400 mt-1"></i> <span><strong className="text-gray-500">المسار:</strong> {o.homeLoc} ↔ {o.workLoc}</span></p>
+                                            <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-gray-200">
+                                                <p><i className="fa-solid fa-users text-gray-400 mr-1"></i> <strong className="text-gray-500">الأشخاص:</strong> {o.peopleCount}</p>
+                                                <p><i className="fa-solid fa-calendar-day text-gray-400 mr-1"></i> <strong className="text-gray-500">الأيام:</strong> {o.workDays}</p>
+                                                <p className="col-span-2"><i className="fa-solid fa-clock text-gray-400 mr-1"></i> <strong className="text-gray-500">المواعيد:</strong> {o.deliveryTimes}</p>
+                                            </div>
+                                            {o.notes && <p className="mt-2 text-xs bg-white p-3 rounded border border-gray-200"><strong>ملاحظات العميل:</strong> {o.notes}</p>}
+                                        </div>
+                                        <a href={`https://wa.me/966${o.clientPhone.replace(/^0+/, '')}`} target="_blank" className="w-full flex items-center justify-center gap-2 py-3 bg-[#25D366] text-white rounded-lg font-bold text-sm hover:bg-green-600 transition shadow-sm">
+                                            <i className="fa-brands fa-whatsapp text-lg"></i> تواصل عبر الواتساب
+                                        </a>
+                                    </div>
+                                ))}
+                                {orders.length === 0 && <div className="col-span-full py-20 text-center text-gray-400 font-bold bg-white rounded-xl border border-dashed border-gray-300">لا توجد طلبات جديدة.</div>}
+                            </div>
+                        )}
+
+                        {tab === 'drivers' && (
+                            <div className="space-y-6">
+                                {drivers.map(d => (
+                                    <div key={d.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col lg:flex-row text-sm">
+                                        <div className="p-6 flex-1 flex flex-col justify-between">
+                                            <div className="flex justify-between items-start mb-4">
+                                                <div>
+                                                    <h3 className="font-bold text-lg text-primary">{d.fullName} <span className="text-xs text-gray-400 font-normal">({d.nationality})</span></h3>
+                                                    <p className="text-gray-500 font-bold" dir="ltr">{d.phone}</p>
+                                                </div>
+                                                <span className={`px-3 py-1 text-[10px] font-bold rounded ${d.status==='معتمد' ? 'bg-green-100 text-green-700 border border-green-200':'bg-amber-100 text-amber-700 border border-amber-200'}`}>{d.status}</span>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-3 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                                                <p><strong className="text-gray-500 text-[10px] block">المركبة</strong> {d.carBrand} ({d.carModel})</p>
+                                                <p><strong className="text-gray-500 text-[10px] block">المدينة</strong> {d.city}</p>
+                                                <p className="col-span-2 pt-2 border-t border-gray-200"><strong className="text-gray-500 text-[10px] block">الموافقة على السند التنفيذي</strong> <span className="font-bold text-green-700">{d.signature}</span></p>
+                                            </div>
+                                        </div>
+                                        <div className="p-6 bg-gray-50 lg:w-72 border-t lg:border-t-0 lg:border-r border-gray-200 flex flex-col justify-between">
+                                            <div>
+                                                <p className="text-xs font-bold text-gray-600 mb-3">المستندات المرفوعة (للتدقيق):</p>
+                                                <ImageViewer images={[d.idImage, d.carFront, d.carBack, d.carRight, d.carLeft]} />
+                                            </div>
+                                            <div className="flex flex-col gap-2 mt-6">
+                                                {d.status !== 'معتمد' && (
+                                                    <button onClick={()=>window.fsCollections.updateDoc(window.fsCollections.doc(window.firebaseDb, 'drivers', d.id), {status:'معتمد'})} className="py-3 bg-primary text-white rounded-lg font-bold text-xs hover:bg-gray-800 transition shadow-sm"><i className="fa-solid fa-check mr-1"></i> اعتماد وتفعيل الكابتن</button>
+                                                )}
+                                                <button onClick={()=>{if(confirm('هل أنت متأكد من حذف الملف نهائياً؟')) window.fsCollections.deleteDoc(window.fsCollections.doc(window.firebaseDb, 'drivers', d.id))}} className="py-2 bg-white border border-red-200 text-red-600 rounded-lg font-bold text-xs hover:bg-red-50 transition"><i className="fa-solid fa-trash-alt mr-1"></i> رفض وحذف السجل</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                                {drivers.length === 0 && <div className="py-20 text-center text-gray-400 font-bold bg-white rounded-xl border border-dashed border-gray-300">سجل الكباتن فارغ حالياً.</div>}
+                            </div>
+                        )}
+
+                        {tab === 'clients' && (
+                            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                                <table className="w-full text-sm text-right">
+                                    <thead className="bg-gray-50 text-gray-600 border-b border-gray-200">
+                                        <tr><th className="p-4">اسم العميل</th><th className="p-4">رقم الجوال</th><th className="p-4">الإجراءات</th></tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100">
+                                        {clients.map(c => (
+                                            <tr key={c.id} className="hover:bg-gray-50">
+                                                <td className="p-4 font-bold text-primary">{c.fullName}</td>
+                                                <td className="p-4 text-gray-600 font-bold" dir="ltr">{c.phone}</td>
+                                                <td className="p-4"><button onClick={()=>{if(confirm('حذف حساب العميل؟')) window.fsCollections.deleteDoc(window.fsCollections.doc(window.firebaseDb, 'clients', c.id))}} className="text-red-500 hover:text-red-700 bg-red-50 p-2 rounded"><i className="fa-solid fa-trash-alt"></i></button></td>
+                                            </tr>
+                                        ))}
+                                        {clients.length===0 && <tr><td colSpan="3" className="text-center py-10 text-gray-400 font-bold">لا يوجد عملاء مسجلين.</td></tr>}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </main>
+
+                    {/* نافذة عرض الصور بكامل الشاشة */}
+                    {imgModal && (
+                        <div className="fixed inset-0 bg-black/90 flex items-center justify-center p-4 z-50" onClick={()=>setImgModal(null)}>
+                            <div className="relative max-w-4xl max-h-[90vh]">
+                                <button className="absolute -top-12 right-0 text-white hover:text-red-500"><i className="fa-solid fa-times fa-2x"></i></button>
+                                <img src={imgModal} className="max-w-full max-h-[85vh] object-contain rounded" />
+                            </div>
+                        </div>
+                    )}
+                  </div>
+                );
+            };
+
+            // ==========================================
+            // توجيه المسارات الأساسية
+            // ==========================================
+            if (view === 'landing') return (
+                <div className="min-h-screen bg-surface flex flex-col items-center justify-center p-6 text-center">
+                    <Logo className="scale-125 mb-10" />
+                    <h1 className="text-3xl font-bold text-primary mb-3">نظام الشرق اللوجستي الموحد</h1>
+                    <p className="text-gray-500 mb-12 max-w-md text-sm leading-relaxed">بوابات إلكترونية مؤمنة لخدمة العملاء وإدارة أسطول الكباتن.</p>
+                    
+                    <div className="flex flex-col sm:flex-row gap-6 w-full max-w-2xl">
+                        <button onClick={() => { setAuthType('client'); setAuthMode('login'); setView('auth'); }} className="flex-1 bg-white p-8 rounded-2xl border border-gray-200 shadow-sm hover:border-gray-400 hover:shadow-md transition flex flex-col items-center gap-4">
+                            <div className="bg-blue-50 w-20 h-20 rounded-full flex items-center justify-center text-blue-600"><i className="fa-solid fa-user text-3xl"></i></div>
+                            <span className="font-bold text-lg text-primary">بوابة العملاء</span>
+                            <span className="text-xs text-gray-400">طلب وتتبع الخدمات</span>
+                        </button>
+                        <button onClick={() => { setAuthType('driver'); setAuthMode('login'); setView('auth'); }} className="flex-1 bg-white p-8 rounded-2xl border border-gray-200 shadow-sm hover:border-gray-400 hover:shadow-md transition flex flex-col items-center gap-4">
+                            <div className="bg-green-50 w-20 h-20 rounded-full flex items-center justify-center text-green-600"><i className="fa-solid fa-truck text-3xl"></i></div>
+                            <span className="font-bold text-lg text-primary">بوابة الكباتن</span>
+                            <span className="text-xs text-gray-400">الانضمام وإدارة التشغيل</span>
+                        </button>
+                    </div>
+
+                    <button onClick={() => {
+                        const pin = prompt("أدخل رمز الإدارة (PIN):");
+                        if (pin === "1234") setView('admin_dash');
+                        else if (pin) alert("رمز خاطئ. غير مصرح بالدخول.");
+                    }} className="mt-24 text-xs font-bold text-gray-400 hover:text-primary flex items-center gap-2 bg-white px-5 py-3 rounded-full border border-gray-200 shadow-sm transition">
+                        <i className="fa-solid fa-shield-alt"></i> دخول الإدارة التشغيلية
+                    </button>
+                </div>
+            );
+
+            if (view === 'auth') return authType === 'client' ? <ClientAuthScreen /> : <DriverAuthWizard />;
+            if (view === 'client_dash') return <ClientDashboard />;
+            if (view === 'driver_dash') return <DriverDashboard />;
+            if (view === 'admin_dash') return <AdminDashboard />;
+            
+            return null;
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
+
