@@ -1,40 +1,31 @@
-.card-container {
-  perspective: 1000px; /* يعطي عمق للحركة الثلاثية الأبعاد */
-  width: 320px;
-  height: 480px;
-  margin: 20px auto;
-}
+import React from 'react';
+import './DriverCard.css';
 
-.card-inner {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  transition: transform 0.8s;
-  transform-style: preserve-3d;
-  cursor: pointer;
-}
+const DriverCard = ({ driverData }) => {
+  return (
+    <div className="card-container">
+      <div className="card-inner">
+        {/* الوجه الأمامي للبطاقة */}
+        <div className="card-front">
+          <h2 style={{ color: '#d4af37' }}>كابتن شرق 🏆</h2>
+          <div style={{ width: '100px', height: '100px', borderRadius: '50%', background: '#fff', marginBottom: '15px' }}>
+             {/* صورة السائق */}
+          </div>
+          <h3 style={{ color: '#fff' }}>{driverData?.name || "اسم الكابتن"}</h3>
+          <p style={{ color: '#d4af37' }}>{driverData?.carType || "نوع السيارة"}</p>
+        </div>
 
-.card-container:hover .card-inner {
-  transform: rotateY(180deg);
-}
+        {/* الوجه الخلفي للبطاقة (بيانات إضافية و QR) */}
+        <div className="card-back">
+          <h3 style={{ color: '#004d40' }}>بيانات الوثيقة</h3>
+          <p>رقم الجوال: {driverData?.phone}</p>
+          <div style={{ background: '#fff', padding: '10px', borderRadius: '10px' }}>
+            <p style={{ color: '#000', fontSize: '12px' }}>QR CODE للتحقق</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
-.card-front, .card-back {
-  position: absolute;
-  width: 100%;
-  height: 100%;
-  backface-visibility: hidden;
-  border-radius: 20px;
-  border: 2px solid #d4af37;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  /* تأثير الزجاج الشفاف */
-  background: rgba(0, 77, 64, 0.9);
-  backdrop-filter: blur(10px);
-}
-
-.card-back {
-  transform: rotateY(180deg);
-  background: rgba(212, 175, 55, 0.1);
-}
+export default DriverCard;
